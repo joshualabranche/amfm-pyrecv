@@ -16,7 +16,7 @@ class FMRadioReceiver:
     A class for FM radio signal reception and demodulation.
     """
 
-    def __init__(self, sample_rate: int, lo_offset: float=1.6e6) -> None:
+    def __init__(self, sample_rate: int, lo_offset: float=1.4e6) -> None:
         """
         class initializer
 
@@ -243,7 +243,7 @@ class FMRadioReceiver:
             saves the data to a file for playback
 
         """
-        # Convert to int16 for audio playback
+        # Convert to float32 for audio playback
         wav_signal = np.float32(audio_signal/np.max(audio_signal))
 
         # Write the audio to a WAV file and play it
