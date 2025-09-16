@@ -39,15 +39,16 @@ class FMRadioReceiver:
         self.lo_offset = lo_offset
         
         self.dec_factor  = 10
-        self.dec_numtaps = 1927
+        self.dec_numtaps = 513
         self.dec_width   = 25e3
         self.dec_cutoff  = 75e3
         self.dec_rate    = self.audio_rate*self.dec_factor
 
-        self.audio_numtaps = 2048
+        self.audio_numtaps = 2049
         self.audio_width   = self.dec_rate/32
         self.audio_cutoff  = self.dec_rate/2 - self.audio_width
         
+        self.lpf_factor = int(self.sample_rate/200e3)
         
         
     def load_iq_data(self, file_name: str) -> np.ndarray:
@@ -182,7 +183,7 @@ class FMRadioReceiver:
 
         """
         if gain == None:
-            gain = self.audio_rate/(2*np.pi*self.frequency_max)
+            gain = self.dec_rate/(2*np.pi*self.frequency_max)
         np.append(iq_data,0)
         demod_data = np.angle(iq_data[:-1:]*np.conjugate(iq_data[1::]))
         return gain*demod_data
@@ -259,14 +260,14 @@ if __name__ == "__main__":
     receiver = FMRadioReceiver(sample_rate)
     
     # load saved FM signal
-    fm_signal = receiver.load_iq_data('fm-radio-106p3MHz')
+    fm_signal = receiver.load_iq_data('fm-capture-20Msps')
     
     # shift the LO
     shift_signal = receiver.shift_lo(fm_signal)
     
     # decimate by a factor of 100
-    rx_coeffs  = receiver.get_fir_coeffs(numtaps=receiver.dec_numtaps, cutoff=receiver.dec_cutoff, width=receiver.dec_width)
-    dec_signal = receiver.decimate(shift_signal,rx_coeffs,100)
+    rx_coeffs  = receiver.get_fir_coeffs(numtaps=receiver.dec_numtaps, cutoff=receiver.dec_cutoff, width=receiver.dec_width, fs=receiver.sample_rate)
+    dec_signal = receiver.decimate(shift_signal,rx_coeffs,receiver.lpf_factor)
     
     # rational resample the signal from 200KHz to 480KHz
     resamp_signal = receiver.rational_resample(dec_signal, 12, 5, window='blackmanharris')
@@ -275,11 +276,11 @@ if __name__ == "__main__":
     demod_signal = receiver.quadrature_demod(resamp_signal)
     
     # filter and downsample the demodulated signal to an audio rate of 48KHz
-    audio_coeffs = receiver.get_fir_coeffs(numtaps=receiver.audio_numtaps, cutoff=receiver.audio_cutoff, width=receiver.audio_width)
-    audio_signal = receiver.decimate(demod_signal,audio_coeffs,10)
+    audio_coeffs = receiver.get_fir_coeffs(numtaps=receiver.audio_numtaps, cutoff=receiver.audio_cutoff, width=receiver.audio_width, fs=receiver.dec_rate)
+    audio_signal = receiver.decimate(demod_signal,audio_coeffs,receiver.dec_factor)
     
     # perform FM deemphasis of the output signal
-    deemphasis_signal = receiver.fm_deemphasis(audio_signal, sample_rate=48e3)
+    deemphasis_signal = receiver.fm_deemphasis(audio_signal, sample_rate=receiver.audio_rate)
     
     # write the output signal to a WAV file for playback
     receiver.save_wav(deemphasis_signal)
